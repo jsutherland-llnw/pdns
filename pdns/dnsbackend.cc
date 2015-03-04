@@ -408,8 +408,15 @@ inline int DNSReversedBackend::_getAuth(DNSPacket *p, SOAData *soa, const string
 
     // Found record successfully now, fill in the data.
     if( getAuthData( *soa, p ) ) {
-        /* all the keys are reversed. rather than reversing them again it is
-         * presumably quicker to just substring the zone down to size */
+        if(inZone[inZone.length()-1] == '.') {
+            if(foundkey[foundkey.length()-1] != '.') {
+                foundkey += ".";
+            }
+        }
+        else {
+            foundkey = stripDot(foundkey);
+        }
+
         soa->qname = inZone.substr( inZone.length() - foundkey.length(), string::npos );
 
         DLOG(L<<Logger::Error<<"Successfully got record: " <<foundkey << " : " << querykey.substr( 0, foundkey.length() ) << " : " << soa->qname<<endl);
