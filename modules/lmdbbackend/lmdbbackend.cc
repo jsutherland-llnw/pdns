@@ -305,7 +305,7 @@ bool LMDBBackend::getAuthZone( string &rev_zone )
     MDB_val key, data;
     // XXX can do this just using char *
 
-    string key_str=bitFlip(rev_zone+" ");
+    string key_str=bitFlip(rev_zone) + "\xff";
     key.mv_data = (char *)key_str.c_str();
     key.mv_size = key_str.length();
 
@@ -320,17 +320,36 @@ bool LMDBBackend::getAuthZone( string &rev_zone )
       mdb_cursor_renew( txn, nsecx_cursor );
     }
 
-    // Find the best record
-    if( mdb_cursor_get( zone_cursor, &key, &data, MDB_SET_RANGE ) == 0 && key.mv_size <= key_str.length() ) {
-      // Found a shorter match. Now look if the zones are equal up to key-length-1. If they are check
-      // if position key-length in key_str is a label separator. If all this is true we have a match.
-      if( key_str.compare( 0, key.mv_size-1, (const char *) key.mv_data, key.mv_size-1  ) == 0 && key.mv_size && key_str[key.mv_size-1] == ~' ') {
-        rev_zone.resize( key.mv_size-1 );
+    while (true) {
+      mdb_cursor_renew( txn, zone_cursor );
 
-        DEBUGLOG("Auth key: " << rev_zone <<endl);
-
-        return true;
+      // Find the best record
+      if (mdb_cursor_get(zone_cursor, &key, &data, MDB_SET_RANGE) == 0 
+          && key.mv_size <= key_str.length() ) {
+        // Found a shorter match. Now look if the zones are equal up to key-length-1. If they are check
+        // if position key-length in key_str is a label separator. If all this is true we have a match.
+        if (key_str.compare( 0, key.mv_size-1, (const char *) key.mv_data, key.mv_size-1  ) == 0 
+            && key.mv_size 
+            && (key_str[key.mv_size-1] == ~' ' || key_str[key.mv_size-1] == '\xff') ) {
+          rev_zone.resize( key.mv_size-1 );
+          DEBUGLOG("Auth key: " << rev_zone <<endl);
+          return true;
+        }
       }
+
+      // trim the last label off
+      size_t last_pos = rev_zone.find_last_of(" ");
+
+      // If we have no spaces, we're out of labels. Break out.
+      // this probably won't work if we're a TLD.
+      if (last_pos == std::string::npos) {
+        break;
+      }
+
+      rev_zone = rev_zone.substr(0, last_pos);
+      key_str = bitFlip(rev_zone) + "\xff";
+      key.mv_data = (char *)key_str.c_str();
+      key.mv_size = key_str.length();
     }
 
     //reset the cursor the data in it is invallid
