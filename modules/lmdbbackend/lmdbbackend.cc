@@ -410,7 +410,7 @@ void LMDBBackend::lookup(const QType &type, const string &inQdomain, DNSPacket *
     ReadLock rl(&s_initlock);
 
     d_first = true;
-    d_origdomain = inQdomain;
+    d_origdomain = stripDot(inQdomain);
     d_curqtype = type;
 }
 
